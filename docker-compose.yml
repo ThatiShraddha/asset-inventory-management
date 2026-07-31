@@ -1,0 +1,134 @@
+
+services:
+  # ─────────────────────────────────────────────────────────────────
+  # Database: PostgreSQL 15
+  # ─────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: eims_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: eims_admin
+      POSTGRES_PASSWORD: eims_secure_password_9021
+      POSTGRES_DB: eims_inventory_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - database_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eims_admin -d eims_inventory_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────────
+  # Cache / Session Store: Redis 7
+  # ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: eims_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - database_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────────
+  # Email Sandbox: Mailpit (SMTP + Web UI)
+  # ─────────────────────────────────────────────────────────────────
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: eims_mailpit
+    restart: always
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI → http://localhost:8025
+    networks:
+      - database_net
+      - frontend_net
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "8025"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────────
+  # Backend API: Express + Prisma
+  # ─────────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: eims_backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DATABASE_URL=postgresql://eims_admin:eims_secure_password_9021@postgres:5432/eims_inventory_db
+      - JWT_SECRET=eims_super_access_secret_token_generation_key_2026
+      - REFRESH_SECRET=eims_super_refresh_secret_token_generation_key_2026
+      - CORS_ORIGINS=http://localhost:3000
+      - SMTP_HOST=mailpit
+      - SMTP_PORT=1025
+      - SMTP_SENDER=notifications@eims-enterprise.com
+    ports:
+      - "4000:4000"
+    networks:
+      - database_net
+      - frontend_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ─────────────────────────────────────────────────────────────────
+  # Frontend SPA: React + Vite (static served via `serve`)
+  # ─────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: eims_frontend
+    restart: always
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - VITE_API_URL=http://localhost:4000/api
+    ports:
+      - "3000:3000"
+    networks:
+      - frontend_net
+
+# ─────────────────────────────────────────────────────────────────
+# Persistent Volumes
+# ─────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ─────────────────────────────────────────────────────────────────
+# Network Isolation
+# ─────────────────────────────────────────────────────────────────
+networks:
+  database_net:
+    driver: bridge
+  frontend_net:
+    driver: bridge

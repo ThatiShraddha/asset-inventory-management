@@ -1,0 +1,464 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  STORE_MANAGER
+  EMPLOYEE
+  AUDITOR
+}
+
+enum RequisitionStatus {
+  PENDING
+  APPROVED
+  DENIED
+  RETURNED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ─────────────────────────────────────────────────────────────────
+// MODELS
+// ─────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(EMPLOYEE)
+  departmentId String
+  avatar       String   @default("👤")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  department     Department     @relation(fields: [departmentId], references: [id])
+  requisitions   Requisition[]
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+
+  purchaseOrders      PurchaseOrder[]
+  receivedReceipts    GoodsReceiptNote[]
+  sentTransfers       AssetTransfer[]     @relation("SenderRelation")
+  receivedTransfers   AssetTransfer[]     @relation("ReceiverRelation")
+  returnedAssets      AssetReturn[]       @relation("ReturnedByRelation")
+  adjustedStocks      StockAdjustment[]   @relation("AdjusterRelation")
+  performedTransactions TransactionLedger[]
+  disposedAssets      AssetDisposal[]     @relation("DisposerRelation")
+
+  @@map("users")
+}
+
+model Department {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  budgetLimit     Float
+  budgetConsumed  Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  users        User[]
+  requisitions Requisition[]
+
+  @@map("departments")
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  inventoryItems InventoryItem[]
+  poItems        PurchaseOrderItem[]
+
+  @@map("categories")
+}
+
+model Vendor {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  contactEmail String
+  phone        String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  inventoryItems     InventoryItem[]
+  purchaseOrders     PurchaseOrder[]
+  goodsReceipts      GoodsReceiptNote[]
+  maintenanceRecords MaintenanceRecord[]
+  warranties         WarrantyAMC[]
+
+  @@map("vendors")
+}
+
+model InventoryItem {
+  id              String   @id @default(cuid())
+  sku             String   @unique
+  name            String
+  categoryId      String
+  vendorId        String
+  quantityInStock Int      @default(0)
+  reorderPoint    Int      @default(5)
+  unitCost        Float
+  lastStockInDate String
+  locationCode    String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  category     Category      @relation(fields: [categoryId], references: [id])
+  vendor       Vendor        @relation(fields: [vendorId], references: [id])
+  requisitions Requisition[]
+
+  transfers          AssetTransfer[]
+  returns            AssetReturn[]
+  adjustments        StockAdjustment[]
+  maintenanceRecords MaintenanceRecord[]
+  warranty           WarrantyAMC?
+  ledgerEntries      TransactionLedger[]
+  disposals          AssetDisposal[]
+
+  @@map("inventory_items")
+}
+
+model Requisition {
+  id                 String            @id @default(cuid())
+  requesterId        String
+  requesterName      String
+  requesterEmail     String
+  requesterRole      Role
+  departmentId       String
+  itemId             String
+  quantityRequested  Int
+  justification      String
+  status             RequisitionStatus @default(PENDING)
+  priority           Priority          @default(MEDIUM)
+  requestedAt        DateTime          @default(now())
+  approvedOrDeniedAt DateTime?
+  approverName       String?
+  denialReason       String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  requester  User          @relation(fields: [requesterId], references: [id])
+  department Department    @relation(fields: [departmentId], references: [id])
+  item       InventoryItem @relation(fields: [itemId], references: [id])
+
+  @@map("requisitions")
+}
+
+model AuditLog {
+  id              String   @id @default(cuid())
+  timestamp       DateTime @default(now())
+  actorId         String?
+  actorName       String
+  actorEmail      String
+  actionType      String
+  details         String
+  skuAffected     String?
+  quantityChanged Int?
+  createdAt       DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  type      String   @default("INFO")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// NEW ENUMS
+// ─────────────────────────────────────────────────────────────────
+
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ORDERED
+  PARTIALLY_RECEIVED
+  COMPLETED
+  CANCELLED
+}
+
+enum AssetCondition {
+  EXCELLENT
+  GOOD
+  DAMAGED
+  BROKEN
+  LOST
+}
+
+enum StockAdjustmentReason {
+  DAMAGE
+  LOST
+  FOUND
+  AUDIT_DIFFERENCE
+  CORRECTION
+  EXPIRED
+}
+
+enum MaintenancePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
+enum DisposalReason {
+  BROKEN
+  OBSOLETE
+  SOLD
+  RECYCLED
+  LOST
+}
+
+enum DocumentType {
+  PURCHASE_ORDER
+  GRN
+  ISSUE_SLIP
+  RETURN_SLIP
+  TRANSFER_SLIP
+  MAINTENANCE_REPORT
+  ADJUSTMENT_SLIP
+  DISPOSAL_CERTIFICATE
+}
+
+// ─────────────────────────────────────────────────────────────────
+// NEW MODELS
+// ─────────────────────────────────────────────────────────────────
+
+model PurchaseOrder {
+  id               String              @id @default(cuid())
+  poNumber         String              @unique
+  vendorId         String
+  purchaseDate     DateTime            @default(now())
+  expectedDelivery DateTime?
+  currency         String              @default("USD")
+  taxRate          Float               @default(0.0)
+  discountRate     Float               @default(0.0)
+  shippingCost     Float               @default(0.0)
+  status           PurchaseOrderStatus @default(DRAFT)
+  remarks          String?
+  createdById      String
+  approvalHistory  String?             // JSON list of approval step details
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  vendor           Vendor              @relation(fields: [vendorId], references: [id])
+  createdBy        User                @relation(fields: [createdById], references: [id])
+  items            PurchaseOrderItem[]
+  goodsReceipts    GoodsReceiptNote[]
+}
+
+model PurchaseOrderItem {
+  id          String   @id @default(cuid())
+  poId        String
+  name        String
+  sku         String?
+  categoryId  String
+  quantity    Int
+  receivedQty Int      @default(0)
+  unitCost    Float
+
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  category      Category      @relation(fields: [categoryId], references: [id])
+}
+
+model GoodsReceiptNote {
+  id           String    @id @default(cuid())
+  grnNumber    String    @unique
+  poId         String
+  vendorId     String
+  warehouse    String
+  receivedById String
+  receivedDate DateTime  @default(now())
+  remarks      String?
+  createdAt    DateTime  @default(now())
+
+  purchaseOrder PurchaseOrder      @relation(fields: [poId], references: [id])
+  vendor        Vendor             @relation(fields: [vendorId], references: [id])
+  receivedBy    User               @relation(fields: [receivedById], references: [id])
+  items         GoodsReceiptNoteItem[]
+}
+
+model GoodsReceiptNoteItem {
+  id          String @id @default(cuid())
+  grnId       String
+  sku         String
+  acceptedQty Int
+  rejectedQty Int
+  unitCost    Float
+
+  goodsReceipt GoodsReceiptNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+}
+
+model AssetTransfer {
+  id              String   @id @default(cuid())
+  transferNumber  String   @unique
+  assetId         String
+  senderId        String
+  receiverId      String
+  managerId       String?
+  storeManagerId  String?
+  status          String   @default("PENDING") // PENDING, APPROVED, CONFIRMED, REJECTED
+  remarks         String?
+  requestedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  asset        InventoryItem @relation(fields: [assetId], references: [id])
+  sender       User          @relation("SenderRelation", fields: [senderId], references: [id])
+  receiver     User          @relation("ReceiverRelation", fields: [receiverId], references: [id])
+}
+
+model AssetReturn {
+  id           String         @id @default(cuid())
+  returnNumber String         @unique
+  assetId      String
+  returnedById String
+  inspectedById String?
+  condition    AssetCondition @default(GOOD)
+  status       String         @default("PENDING") // PENDING, COMPLETED
+  remarks      String?
+  returnedAt   DateTime       @default(now())
+
+  asset      InventoryItem @relation(fields: [assetId], references: [id])
+  returnedBy User          @relation("ReturnedByRelation", fields: [returnedById], references: [id])
+}
+
+model StockAdjustment {
+  id               String                @id @default(cuid())
+  adjustmentNumber String                @unique
+  assetId          String
+  previousQty      Int
+  newQty           Int
+  adjustedById     String
+  approvedById     String?
+  reason           StockAdjustmentReason
+  status           String                @default("PENDING") // PENDING, APPROVED, REJECTED
+  remarks          String?
+  createdAt        DateTime              @default(now())
+
+  asset      InventoryItem @relation(fields: [assetId], references: [id])
+  adjustedBy User          @relation("AdjusterRelation", fields: [adjustedById], references: [id])
+}
+
+model MaintenanceRecord {
+  id            String              @id @default(cuid())
+  recordId      String              @unique // MNT-XXXX
+  assetId       String
+  vendorId      String?
+  issue         String
+  priority      MaintenancePriority @default(MEDIUM)
+  estimatedCost Float               @default(0.0)
+  actualCost    Float               @default(0.0)
+  scheduledDate DateTime
+  completedDate DateTime?
+  engineer      String?
+  status        MaintenanceStatus   @default(SCHEDULED)
+  remarks       String?
+  createdAt     DateTime            @default(now())
+
+  asset  InventoryItem @relation(fields: [assetId], references: [id])
+  vendor Vendor?       @relation(fields: [vendorId], references: [id])
+}
+
+model WarrantyAMC {
+  id          String      @id @default(cuid())
+  assetId     String      @unique
+  startDate   DateTime
+  endDate     DateTime
+  vendorId    String
+  coverage    String
+  amcProvider String?
+  amcCost     Float       @default(0.0)
+  remarks     String?
+  createdAt   DateTime    @default(now())
+
+  asset  InventoryItem @relation(fields: [assetId], references: [id])
+  vendor Vendor        @relation(fields: [vendorId], references: [id])
+}
+
+model TransactionLedger {
+  id              String   @id @default(cuid())
+  transactionId   String   @unique // TX-XXXX
+  assetId         String
+  type            String   // PURCHASE, ISSUE, RETURN, TRANSFER, ADJUSTMENT, MAINTENANCE, DISPOSAL, CORRECTION
+  previousQty     Int
+  newQty          Int
+  performedById   String
+  reason          String?
+  referenceNumber String?  // Linked PO, GRN, Transfer Number, etc.
+  timestamp       DateTime @default(now())
+
+  asset       InventoryItem @relation(fields: [assetId], references: [id])
+  performedBy User          @relation(fields: [performedById], references: [id])
+}
+
+model AssetDisposal {
+  id             String         @id @default(cuid())
+  disposalNumber String         @unique
+  assetId        String
+  reason         DisposalReason
+  disposedQty    Int
+  disposedById   String
+  approvedById   String?
+  status         String         @default("PENDING") // PENDING, APPROVED, REJECTED
+  certificateUrl String?
+  createdAt      DateTime       @default(now())
+
+  asset      InventoryItem @relation(fields: [assetId], references: [id])
+  disposedBy User          @relation("DisposerRelation", fields: [disposedById], references: [id])
+}
+
+model SystemDocument {
+  id               String       @id @default(cuid())
+  documentNumber   String       @unique // PO-xxx, GRN-xxx, etc.
+  type             DocumentType
+  referenceId      String       // The linked database record ID
+  qrCodeData       String
+  digitalSignature String
+  logoUrl          String?
+  version          Int          @default(1)
+  history          String?      // JSON string tracking changes
+  createdAt        DateTime     @default(now())
+}

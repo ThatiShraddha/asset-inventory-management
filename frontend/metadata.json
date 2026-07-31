@@ -1,0 +1,6 @@
+{
+  "name": "AssetFlow Enterprise",
+  "description": "Operational Enterprise Inventory Management System featuring role-based dashboards, catalog lists, automated budget validation, live requisition workflows, and transactional ledger logs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
