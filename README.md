@@ -116,25 +116,6 @@ ASSET-INVENTORY/
 
 ---
 
-## Role Matrix
-
-| Permission | Super Admin | Admin | Store Manager | Employee | Auditor |
-|-----------|:-----------:|:-----:|:-------------:|:--------:|:-------:|
-| View Inventory | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Add/Edit Inventory | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Stock-In Delivery | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Submit Requisition | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Approve/Deny Request | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Process Return | ✅ | ✅ | ✅ | ❌ | ❌ |
-| View Audit Logs | ✅ | ✅ | ❌ | ❌ | ✅ |
-| View Reports | ✅ | ✅ | Inventory only | ❌ | ✅ |
-| Manage Budgets | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Manage Users | ✅ | ✅ | ❌ | ❌ | ❌ |
-| System Reset | ✅ | ❌ | ❌ | ❌ | ❌ |
-
-> **Note:** All role checks are enforced **server-side** via JWT payload. Calling a protected endpoint without the correct role returns `403 Forbidden`.
-
----
 
 ## Quick Start
 
@@ -219,11 +200,11 @@ All accounts use the same password: **`secret-passkey`**
 
 | Role | Email | Permissions |
 |------|-------|-------------|
-| 👑 Super Admin | `a.wright@enterprise.com` | Full access + system reset |
+
 | 👩‍💼 Admin | `s.jenkins@enterprise.com` | Operations, approvals, reports |
 | 📦 Store Manager | `e.rostova@enterprise.com` | Stock-in, returns, inventory |
 | 👨‍💻 Employee | `m.thorne@enterprise.com` | Browse assets, submit requests |
-| 🕵️ Auditor | `d.prince@enterprise.com` | Read-only logs and reports |
+
 
 > **Tip:** On the login page, click any persona card to auto-fill the credentials — no need to type!
 
@@ -461,14 +442,4 @@ npm run lint          # TypeScript type check
 3. Commit your changes: `git commit -m 'feat: add my feature'`
 4. Push and open a Pull Request
 
----
 
-## License
-
-MIT License — feel free to use this for college projects, portfolios, and hackathons.
-
----
-
-<div align="center">
-Built with ❤️ · AssetFlow Enterprise EIMS v2.0
-</div>
